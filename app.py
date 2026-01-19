@@ -44,7 +44,15 @@ def check_safety(query: str) -> tuple[bool, str]:
 
 def is_yoga_question(query: str) -> bool:
     query_lower = query.lower()
-    return any(keyword in query_lower for keyword in YOGA_KEYWORDS)
+    
+    if any(keyword in query_lower for keyword in YOGA_KEYWORDS):
+        return True
+    
+    general_yoga_words = ["how", "what", "why", "benefit", "help", "practice", "exercise", "health", "wellness", "fitness", "body", "mind"]
+    if any(word in query_lower for word in general_yoga_words):
+        return True
+    
+    return False
 
 
 YOGA_KNOWLEDGE = """
@@ -278,14 +286,12 @@ def answer_yoga_question(query: str, vector_db, llm) -> dict:
     else:
         docs = retriever.invoke(query)
     
-    if llm is not None:
-        try:
-            if docs:
-                context = docs[0].page_content
-            else:
-                context = "No specific information found."
-            
-            prompt = f"""You are an expert yoga instructor. Answer the user's question using ONLY the information provided in the context below. Do NOT make up information or reference other poses.
+    if docs and len(docs) > 0:
+        context = docs[0].page_content
+        
+        if llm is not None:
+            try:
+                prompt = f"""You are an expert yoga instructor. Answer the user's question using ONLY the information provided in the context below. Do NOT make up information or reference other poses.
 
 CONTEXT (Use ONLY this information):
 {context}
@@ -301,24 +307,26 @@ INSTRUCTIONS:
 6. Do NOT mention other poses unless they are in the context
 
 Answer:"""
-            
-            response = llm.invoke(prompt)
-            
-            if isinstance(response, dict):
-                for key in ['generated_text', 'text', 'output', 'answer']:
-                    if key in response:
-                        response = response[key]
-                        break
-            
-            answer = str(response).strip()
-            
-            if not answer or len(answer) < 50:
-                answer = generate_fallback_response(query)
-            elif "i don't know" in answer.lower() or "i cannot" in answer.lower():
-                answer = generate_fallback_response(query)
-            
-        except Exception as e:
-            answer = generate_fallback_response(query)
+                
+                response = llm.invoke(prompt)
+                
+                if isinstance(response, dict):
+                    for key in ['generated_text', 'text', 'output', 'answer']:
+                        if key in response:
+                            response = response[key]
+                            break
+                
+                answer = str(response).strip()
+                
+                if not answer or len(answer) < 50:
+                    answer = f"Based on the yoga knowledge base:\n\n{context}"
+                elif "i don't know" in answer.lower() or "i cannot" in answer.lower():
+                    answer = f"Based on the yoga knowledge base:\n\n{context}"
+                
+            except Exception as e:
+                answer = f"Based on the yoga knowledge base:\n\n{context}"
+        else:
+            answer = f"Based on the yoga knowledge base:\n\n{context}"
     else:
         answer = generate_fallback_response(query)
     
